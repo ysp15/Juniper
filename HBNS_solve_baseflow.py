@@ -4,7 +4,7 @@ import json
 
 config_path = sys.argv[1]
 with open(config_path, "r") as read_file:
-    data = json.load(read_file)
+    testcfg = json.load(read_file)
 
 import deepxde as dde
 from deepxde import config
@@ -14,7 +14,7 @@ import numpy as np
 
 os.environ["XLA_FLAGS"]="--xla_gpu_cuda_data_dir=/apps/cuda/11.2.2/"
 
-if data["float"] == "64":
+if testcfg["float"] == "64":
     dde.config.set_default_float("float64")
 else:
     print("float32")
@@ -106,18 +106,19 @@ class StressBC(dde.icbc.DirichletBC):
         return (a + b) - values
 #################################################################
 # Rectangular
-Xmin, Xmax = -10.0, 30.0
-Ymin, Ymax = -10.0, 10.0
+testcfg["Xlim"][0]
+Xmin, Xmax = testcfg["Xlim"][0], testcfg["Xlim"][1]
+Ymin, Ymax = testcfg["Ylim"][0], testcfg["Ylim"][1]
 
-Re = data['Re']
+Re = testcfg['Re']
 Uinf = 1.0
 D = 1.0
 nu = Uinf*D/Re
 ##############
-N_colloc = data['colloc']
+N_colloc = testcfg['colloc']
 N_train, N_bc= N_colloc
 
-param = data['param']
+param = testcfg['param']
 nodes, layers, lr = param
 
 print(nodes)
@@ -132,7 +133,7 @@ path = os.getcwd()
 if not os.path.isdir(path + final_path + "/Model"):
     os.makedirs(path + final_path + "/Model")
 
-iter_list = data['iter']
+iter_list = testcfg['iter']
 iter, iter2 = iter_list
 ##################################################################
 cylinder = dde.geometry.Disk([0, 0], D/2)
@@ -155,70 +156,185 @@ def boundary_outlet(x, on_boundary):
 pde = HBNS_0(nu)
 ##############################################################################################
 bc_list = []
-weights = data["w_pde"]#[1e0,1e0,1e0]
+weights = testcfg["w_pde"]#[1e0,1e0,1e0]
 
 bc_inlet_u0  = dde.icbc.DirichletBC(domain, func_const(Uinf), boundary_inlet, component=0)
 bc_inlet_v0  = dde.icbc.DirichletBC(domain, func_zeros, boundary_inlet, component=1)
 bc_list.append(bc_inlet_u0)
 bc_list.append(bc_inlet_v0)
-weights.append(data["w_in"][0])
-weights.append(data["w_in"][1])
+weights.append(testcfg["w_in"][0])
+weights.append(testcfg["w_in"][1])
 
-if(data['BC_in_p']):
+if(testcfg['BC_in_p']):
     bc_inlet_p0  = dde.icbc.NeumannBC(domain, func_zeros, boundary_inlet, component=2)
     bc_list.append(bc_inlet_p0)
-    weights.append(data["w_in"][2])
+    weights.append(testcfg["w_in"][2])
 
 ######################
 bc_wall_u0  = dde.icbc.DirichletBC(domain, func_zeros, boundary_wall, component=0)
 bc_wall_v0  = dde.icbc.DirichletBC(domain, func_zeros, boundary_wall, component=1)
 bc_list.append(bc_wall_u0)
 bc_list.append(bc_wall_v0)
-weights.append(data["w_wall"][0])
-weights.append(data["w_wall"][1])
+weights.append(testcfg["w_wall"][0])
+weights.append(testcfg["w_wall"][1])
 
-if(data['BC_wall_p']):
+if(testcfg['BC_wall_p']):
     bc_wall_p0  = dde.icbc.NeumannBC(domain, func_zeros, boundary_wall, component=2)
     bc_list.append(bc_wall_p0)
-    weights.append(data["w_wall"][2])
+    weights.append(testcfg["w_wall"][2])
 
 ###########################
-if(data['BC_side'] == 'stress'):
+if(testcfg['BC_side'] == 'stress'):
     bc_side_0 = StressBC(domain, func_zeros, boundary_side, component=0, nu = nu)
     bc_list.append(bc_side_0)
-    weights.append(data["w_side"][0])
+    weights.append(testcfg["w_side"][0])
     
-elif(data['BC_side'] == 'slip'):
+elif(testcfg['BC_side'] == 'slip'):
     bc_side_u0  = dde.icbc.NeumannBC(domain, func_zeros, boundary_side, component=0)
     bc_side_v0  = dde.icbc.DirichletBC(domain, func_zeros, boundary_side, component=1)
     bc_list.append(bc_side_u0)
     bc_list.append(bc_side_v0)
-    weights.append(data["w_side"][0])
-    weights.append(data["w_side"][1])
+    weights.append(testcfg["w_side"][0])
+    weights.append(testcfg["w_side"][1])
     
-elif(data['BC_side'] == 'inlet'):
+elif(testcfg['BC_side'] == 'inlet'):
     bc_side_u0  = dde.icbc.DirichletBC(domain, func_const(Uinf), boundary_side, component=0)
     bc_side_v0  = dde.icbc.DirichletBC(domain, func_zeros, boundary_side, component=1)
     bc_list.append(bc_side_u0)
     bc_list.append(bc_side_v0)
-    weights.append(data["w_side"][0])
-    weights.append(data["w_side"][1])
+    weights.append(testcfg["w_side"][0])
+    weights.append(testcfg["w_side"][1])
 #########################
-if(data['BC_out'] == 'stress'):
+if(testcfg['BC_out'] == 'stress'):
     bc_outlet_0 = StressBC(domain, func_zeros, boundary_outlet, component=0, nu = nu)
     bc_list.append(bc_outlet_0)
-    weights.append(data["w_out"][0])
+    weights.append(testcfg["w_out"][0])
     
-elif(data['BC_out'] == 'zeroGrad'):  
+elif(testcfg['BC_out'] == 'zeroGrad'):  
     bc_outlet_u0  = dde.icbc.NeumannBC(domain, func_zeros, boundary_outlet, component=0)
     bc_outlet_v0  = dde.icbc.NeumannBC(domain, func_zeros, boundary_outlet, component=1)
     bc_outlet_p0  = dde.icbc.DirichletBC(domain, func_zeros, boundary_outlet, component=2)
     bc_list.append(bc_outlet_u0)
     bc_list.append(bc_outlet_v0)
     bc_list.append(bc_outlet_p0)
-    weights.append(data["w_out"][0])
-    weights.append(data["w_out"][1])
-    weights.append(data["w_out"][2])
+    weights.append(testcfg["w_out"][0])
+    weights.append(testcfg["w_out"][1])
+    weights.append(testcfg["w_out"][2])
+#######################################################################################
+if (testcfg['mesh_ref']):
+    if (testcfg['dist'] = 'centre_bias'):
+        
+        nsamp = 1000
+        a = testcfg['c_bias'][0]
+        x0 = testcfg['c_bias'][1]
+        b = -1/(x0+a)
+        points = []
+        ##################################################################
+        dom_coords = np.array([[Xmin, Ymin],
+                                [Xmax, Ymax]])
+                                
+        while(len(points) < N_train):
+            x_test = dom_coords[0:1, :] + (dom_coords[1:2, :] - dom_coords[0:1, :]) * np.random.rand(nsamp, 2)
+            dist = np.random.rand(nsamp, 1)
+            t_b = np.random.rand(nsamp, 1)*2 - 1
+        
+            y0 = np.abs(x_test[:,1])
+            ratY = 1 - (np.log(dist+a) + b*dist - np.log(a))
+            ratY[:,0] *= y0
+        
+            IXt = (t_b > 0)
+            IXb = (t_b <= 0)
+                        
+            x_test[IXt[:,0],1] = ratY[IXt[:,0],0]
+            x_test[IXb[:,0],1] = - ratY[IXb[:,0],0]
+        
+            for i in range(x_test.shape[0]):
+                if(len(points) < N_train):
+                    if (x_test[i,0]**2 + x_test[i,1]**2 > (D*D/4) ):
+                        if (x_test[i,1]**2 < Ymax*Ymax):
+                            points.append(x_test[i,:])
+        
+                else:
+                    break
+
+        points = np.asarray(points)
+
+    elif (testcfg['dist'] = 'box_ref'):
+        nsamp = 1000
+        
+        base_size = 10.0
+        wake_size = 0.1
+        near_size = 0.01
+        far_size  = 0.2
+        
+        rho_base = 4/(base_size*base_size)
+        rho_wake = 4/(wake_size*wake_size)
+        rho_near = 4/(near_size*near_size)
+        rho_far  = 4/(far_size*far_size)
+        
+        Xb = -7.5
+        Yb =  9.0
+        A_base = 2*(Xb-Xmin)*(Yb) + 2*(Xmax - Xb)*(Ymax-Yb)
+        
+        Xf1 = -2.5
+        Xf2 = 30.0
+        Yf  = 2.5
+        A_far = 2*(Xf1 - Xb)*Yf + 2*(Xf2 - Xf1)*(Yb - Yf) + 2*(Xmax - Xf2)*Yb
+        
+        Xw1 = -1.0
+        Xw2 = 1.0
+        Yw = 1.0
+        A_wake = 2*(Xw1 - Xf1)*Yf + 2*(Xw2 - Xw1)*(Yw - Yf) + 2*(Xf2 - Xw2)*Yf
+        
+        A_near = 2*(Xw2 - Xw1)*Yw - (np.pi*D*D/4)
+        
+        N_base = A_base*rho_base
+        N_far = A_far*rho_far
+        N_wake = A_wake*rho_wake
+        N_near = A_near*rho_near
+        
+        points_base = []
+        while(len(points_base) < N_base):
+            x_base = dom_coords[0:1, :] + (dom_coords[1:2, :] - dom_coords[0:1, :]) * np.random.rand(nsamp, 2)
+            
+            for i in range(x_base.shape[0]):
+                if(len(points_base) < N_base):
+                    if (x_base[i,0] <= Xb):
+                        points_base.append(x_base[i,:])
+                    elif ((x_base[i,0] > Xb) and (x_base[i,1]**2 >= Yb**2)):  
+                else:
+                    break
+        
+        points_base = np.asarray(points_base)
+        
+        points_far = []
+        while(len(points_far) < N_far):
+            x_far = dom_coords[0:1, :] + (dom_coords[1:2, :] - dom_coords[0:1, :]) * np.random.rand(nsamp, 2)
+            
+            for i in range(x_far.shape[0]):
+                if(len(points_far) < N_far):
+                    if ((x_far[i,0] <= Xf1) and (x_far[i,0] > Xb) and (x_far[i,1]*2 <= Yb**2)) :
+                        points_far.append(x_far[i,:])
+                    elif ((x_far[i,0] <= Xf2) and (x_far[i,0] > Xf1) and (x_far[i,1]*2 <= Yb**2) and (x_far[i,1]*2 > Yf**2)):
+                        points_far.append(x_far[i,:])
+                    elif ((x_far[i,0] > Xf2) and (x_far[i,1]*2 <= Yb**2)):
+                        points_far.append(x_far[i,:])
+                else:
+                    break
+        
+        points_far = np.asarray(points_far)
+        
+        
+        
+        
+        X_anchor = ''
+
+
+
+
+
+
+
 #######################################################################################
 data = dde.data.PDE(
         domain,
